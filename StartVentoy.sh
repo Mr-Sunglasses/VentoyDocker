@@ -59,9 +59,9 @@ if ! command -v docker &>/dev/null; then
 fi
 
 # Build the Docker image if it is not already built
-if ! docker image inspect ventoy-docker:1.1.07 &>/dev/null; then
+if ! docker image inspect ventoy-docker:1.1.12 &>/dev/null; then
     echo "Docker image 'ventoy-docker' not found. Building the image..."
-    docker build -t ventoy-docker:1.1.07 .
+    docker build -t ventoy-docker:1.1.12 .
 fi
 
 # Check if the build was successful
@@ -91,7 +91,7 @@ docker run -it --rm \
     --name ventoy-docker \
     --privileged \
     -p "${PORT}":24680 \
-    ventoy-docker:1.1.07 \
+    ventoy-docker:1.1.12 \
     bash \
     -c "
 echo ''
