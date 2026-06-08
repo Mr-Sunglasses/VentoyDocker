@@ -1,0 +1,62 @@
+name: Test Docker Build
+
+on:
+  push:
+    branches: ["master"]
+    paths:
+      - "Dockerfile"
+      - "**/*.sh"
+  pull_request:
+    branches: ["master"]
+    paths:
+      - "Dockerfile"
+      - "**/*.sh"
+
+jobs:
+  # Job 1: Build locally and run the actual smoke test
+  test-local:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Dockerfile Syntax
+        run: docker build --check .
+
+      - name: Build and Load Image Locally
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: ventoy-docker:test
+
+      - name: Run Smoke Test
+        run: |
+          docker run --rm ventoy-docker:test ./Ventoy2Disk.sh --help
+
+  # Job 2: Verify the build compiles correctly for Apple Silicon (macOS)
+  check-macos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Test for macOS (ARM64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/arm64
+          push: false
