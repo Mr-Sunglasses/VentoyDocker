@@ -86,6 +86,16 @@ brew install qemu
 
 7. Run Ventoy CLI commands or start VentoyWeb.
 
+  - To start VentoyWeb:
+    ```bash
+    ./VentoyWeb -H 0.0.0.0
+    ```
+
+  - To run Ventoy CLI commands:
+    ```bash
+    ./VentoyCLI <commands>
+    ```
+
 8. Before leaving the container, detach the NBD device:
 
    ```bash
