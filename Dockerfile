@@ -24,3 +24,5 @@ COPY ./scripts/ /root/ventoy-1.1.12/scripts/
 RUN chmod +x /root/ventoy-1.1.12/scripts/cleanup.sh  /root/ventoy-1.1.12/scripts/mount.sh 
 
 CMD ["bash"]
+
+##Just testing
