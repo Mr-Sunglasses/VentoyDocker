@@ -36,7 +36,7 @@ jobs:
 
       - name: Run Smoke Test
         run: |
-          docker run --rm ventoy-docker:test ./Ventoy2Disk --help
+          docker run --rm ventoy-docker:test ./Ventoy2Disk.sh --help
 
   # Job 2: Verify the build compiles correctly for Apple Silicon (macOS)
   check-macos:
