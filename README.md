@@ -1,6 +1,7 @@
 <!-- markdownlint-configure-file { "MD004": { "style": "consistent" } } -->
 <!-- markdownlint-disable MD033 -->
-#
+
+# VentoyDocker
 
 <p align="center">
   <img src="./assets/VentoyDocker.png" alt="VentoyDocker logo" width="300" />
@@ -10,166 +11,231 @@
 
 <!-- markdownlint-enable MD033 -->
 
-VentoyDocker is a project that provides a Docker container allowing you to run [Ventoy](https://www.ventoy.net/) in a Docker environment. 
+VentoyDocker runs [Ventoy](https://www.ventoy.net/) inside a Docker container so macOS users can create Ventoy bootable USB drives without a native Ventoy build.
 
-- **Easy-to-use**: our scripts walk you through the simple use process
-- **Free**: open source software that helps you create bootable USB drives
-- **Enable Mac Support**: Ventoy officially does not have the support to run on macOS to create bootable usb device, but VentoyDocker enables Ventoy to work on macOS allowing you to create bootable USB drives using macOS.
+## Support Status
 
------
+| Interface | Status |
+| --- | --- |
+| Ventoy CLI | Supported |
+| VentoyWeb | Supported |
+| Ventoy GUI | Not supported |
+
+Linux users can run Ventoy natively. See the official [Ventoy getting started documentation](https://www.ventoy.net/en/doc_start.html).
 
 ## Tutorial
 
 [![VentoyDocker Demo](https://i.imgflip.com/a6j2jf.jpg)](https://youtu.be/70btP4Nli1w?si=pVojLN-cwY4qmqzo)
 
------
+## Prerequisites
 
-## Getting Started
+- macOS
+- Docker
+- QEMU, including `qemu-nbd`
+- A USB drive to install Ventoy on
 
-### Prerequisites
-- Docker installed on your machine
-- Qemu installed on your machine (for macOS users)
-- A USB drive to use with Ventoy
+Install QEMU with Homebrew:
 
-### Installation
+```bash
+brew install qemu
+```
+
+## Quick Start
+
+> **Warning**
+> Ventoy installation can erase or repartition the selected USB drive. Double-check the device path before running these commands.
+
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/Mr-Sunglasses/VentoyDocker.git
-   ```
-2. Navigate to the project directory:
-   ```bash
    cd VentoyDocker
-   ``` 
-3. Make the `StartVentoy.sh` and `StartNbd.sh` scripts executable:
-   ```bash
-   chmod +x StartVentoy.sh
-   chmod +x StartNbd.sh
-   ``` 
-4. Start the NBD server:
-   ```bash
-   sudo ./StartNbd.sh -d <your-usb-drive-mount-path>
    ```
 
-    - Note: You need to run this command with `sudo` to allow access to the disk image or USB drive.
-    - The `-d` option specifies the USB drive mount path to use with Ventoy.
-   - Replace `<your-usb-drive-mount-path>` with the mount path to your USB drive.
+2. Make the host scripts executable:
 
-   - You can check the available USB drives and their mount path by running:
+   ```bash
+   chmod +x StartVentoy.sh StartNbd.sh
+   ```
+
+3. Find the USB device path:
+
    ```bash
    diskutil list
    ```
-   - Output of the Above command is like this:
+
+   Use the whole external disk path, for example `/dev/disk5`, not a partition such as `/dev/disk5s1`.
+
+4. Start the NBD server on macOS:
 
    ```bash
-   /dev/disk0 (internal, physical):
+   sudo ./StartNbd.sh -d /dev/disk5
+   ```
+
+5. In a second terminal, start the Ventoy Docker container:
+
+   ```bash
+   ./StartVentoy.sh
+   ```
+
+6. Inside the container, connect to the NBD device:
+
+   ```bash
+   ./scripts/mount.sh
+   ```
+
+7. Run Ventoy CLI commands or start VentoyWeb.
+
+8. Before leaving the container, detach the NBD device:
+
+   ```bash
+   ./scripts/cleanup.sh
+   ```
+
+## Workflow Details
+
+### 1. Select the USB Device
+
+Run:
+
+```bash
+diskutil list
+```
+
+Example output:
+
+```text
+/dev/disk0 (internal, physical):
    #:                       TYPE NAME                    SIZE       IDENTIFIER
    0:      GUID_partition_scheme                        *500.3 GB   disk0
    1:             Apple_APFS_ISC Container disk1         524.3 MB   disk0s1
    2:                 Apple_APFS Container disk3         494.4 GB   disk0s2
    3:        Apple_APFS_Recovery Container disk2         5.4 GB     disk0s3
 
-   /dev/disk3 (synthesized):
-   #:                       TYPE NAME                    SIZE       IDENTIFIER
-   0:      APFS Container Scheme -                      +494.4 GB   disk3
-                                 Physical Store disk0s2
-   1:                APFS Volume Macintosh HD - Data     159.7 GB   disk3s1
-   2:                APFS Volume Macintosh HD            12.0 GB    disk3s3
-   3:              APFS Snapshot com.apple.os.update-... 12.0 GB    disk3s3s1
-   4:                APFS Volume Preboot                 7.9 GB     disk3s4
-   5:                APFS Volume Recovery                1.3 GB     disk3s5
-   6:                APFS Volume VM                      1.1 GB     disk3s6
-
-   /dev/disk4 (disk image):
-   #:                       TYPE NAME                    SIZE       IDENTIFIER
-   0:      GUID_partition_scheme                        +105.9 MB   disk4
-   1:                  Apple_HFS BetterDisplay           105.9 MB   disk4s1
-
-   /dev/disk5 (external, physical):
+/dev/disk5 (external, physical):
    #:                       TYPE NAME                    SIZE       IDENTIFIER
    0:     FDisk_partition_scheme                        *30.8 GB    disk5
    1:               Windows_NTFS Ventoy                  30.7 GB    disk5s1
-   2:                       0xEF                         33.6 MB    disk5s 
-   ```
-   Choose the mount path of the USB drive in which you want to install ventoy. For example; I want to install ventoy in disk5 USB drive, then the mount path of that USB drive will be `/dev/disk5`
+   2:                       0xEF                         33.6 MB    disk5s2
+```
 
-   __Note:__ The default port for NBD is `10809`, but you can specify a different port using the `-p` option:
-   
-   - Example: with defualt port for NBD: `10809`
+In this example, the USB drive is `/dev/disk5`.
 
-   ```bash
-   ./StartNbd.sh -d /dev/disk5
-   ```
+### 2. Start NBD on the Host
 
-   - Example: with custom port for NBD: `1088`
+`StartNbd.sh` exports the selected USB device from macOS over NBD.
 
-   ```bash
-   ./StartNbd.sh -d /dev/disk5 -p 1088
-   ```
+```bash
+sudo ./StartNbd.sh -d /dev/disk5
+```
 
-5. Start the Ventoy Docker container:
-   ```bash
-   ./StartVentoy.sh
-   ```  
+The script requires `sudo` because it needs access to the block device. It also unmounts the selected disk before starting `qemu-nbd`.
 
-   __Note:__ You can specify the port to expose for VentoyWeb when starting the Ventoy Docker container which is Default to `24680`. To specify custom port apart from `24680` you can use `-p` flag.
+By default, NBD listens on port `10809`. To use a custom port:
 
-   - Example:
+```bash
+sudo ./StartNbd.sh -d /dev/disk5 -p 1088
+```
 
-   ```bash
-   ./StartVentoy.sh -p 8080
-   ```
+### 3. Start the Ventoy Container
 
-6. Steps after starting the container:
-   - The script will prompt you to connect to the NBD server from your host machine.
-   - Use the command provided to connect to the NBD server:
-     ```bash
-     nbd-client host.docker.internal <your-nbd-port> <your-nbd-device>
-     ```
-   - Replace `<your-nbd-port>` with the port you specified (default is `10809`) and `<your-nbd-device>` with the device path (e.g., `/dev/nbd0`).
-   - Optionally you can run the following script to connect to the NBD server from your host machine
-     ```bash
-     ./scrips/mount.sh
-     ```
+Run:
 
+```bash
+./StartVentoy.sh
+```
 
-   - Before exiting the container, cleanly detach NBD, Clean Detach Procedure is essential to avoid data loss: 
-        ```bash
-        nbd-client -d <your-nbd-device>
-        ```
-   - Optionally you can run the following script cleanly detach NBD
-        ```bash
-         ./scripts/cleanup.sh
-        ```
+The script builds the Docker image if needed and starts an interactive container.
 
-Now you can easily use Ventoy scripts to create bootable USB drives or disk images. For more information on how to use Ventoy scripts, refer to the [Ventoy documentation](https://www.ventoy.net/en/doc_start.html).
+VentoyWeb is exposed on host port `24680` by default. To use a custom host port:
 
-_📢 Important Notes:_
-- ✅ Only the Ventoy CLI and Ventoy Web is currently supported in this project.
-- ❌ Ventoy GUI interface are NOT supported.
+```bash
+./StartVentoy.sh -p 8080
+```
 
-----
+### 4. Connect the Container to NBD
 
-### FAQ
+Inside the Docker container, mount the exported USB device:
 
-1. How to run the VentoyWeb after starting the VentoyDocker container ?
-- You can run the VentoyWeb using the following command in the docker container
+```bash
+./scripts/mount.sh
+```
+
+This connects `host.docker.internal:10809` to `/dev/nbd0`.
+
+For a custom NBD port or NBD device:
+
+```bash
+./scripts/mount.sh -p 1088 -d /dev/nbd1
+```
+
+You can also run the underlying command directly:
+
+```bash
+nbd-client host.docker.internal 10809 /dev/nbd0
+```
+
+### 5. Use Ventoy
+
+From inside the container, use the Ventoy scripts as you normally would. For example, start VentoyWeb with:
+
 ```bash
 ./VentoyWeb.sh -H 0.0.0.0
 ```
 
-and now you can access the ventoyweb interface on your hostmachine by going to `0.0.0.0:24680` in your browser.
+Then open VentoyWeb on the host:
 
-__Note__: You can also specify which port to expose in the host machine; see the docs [here](#installation)
+```text
+http://localhost:24680
+```
 
-----
+If you started the container with a custom host port, use that port instead.
 
-### Contributing via GitHub
+For Ventoy CLI usage, refer to the official [Ventoy documentation](https://www.ventoy.net/en/doc_start.html).
 
-We welcome _everyone_ to contribute to issue reports, suggest new features, and create pull requests.
+### 6. Detach Cleanly
 
-If you have something to add - anything from a typo through to a whole new feature, we're happy to check it out! Just make sure to fill out our template when submitting your request; the questions it asks will help the volunteers quickly understand what you're aiming to achieve.
+Before exiting the container, detach the NBD device to avoid data loss:
 
------
+```bash
+./scripts/cleanup.sh
+```
+
+For a custom NBD device:
+
+```bash
+./scripts/cleanup.sh -d /dev/nbd1
+```
+
+You can also run the underlying command directly:
+
+```bash
+nbd-client -d /dev/nbd0
+```
+
+## FAQ
+
+### How do I run VentoyWeb?
+
+Start the container, connect the NBD device, then run this inside the container:
+
+```bash
+./VentoyWeb.sh -H 0.0.0.0
+```
+
+Open `http://localhost:24680` on the host. If you used `./StartVentoy.sh -p 8080`, open `http://localhost:8080`.
+
+### Why does `StartNbd.sh` require sudo?
+
+It needs direct access to the selected block device and must unmount the disk before exporting it through `qemu-nbd`.
+
+### Can I use this on Linux?
+
+VentoyDocker is primarily for macOS. On Linux, use Ventoy directly by following the official [Ventoy getting started documentation](https://www.ventoy.net/en/doc_start.html).
+
+## Contributing
+
+Contributions are welcome. Open an issue for bug reports or feature requests, and use the repository templates when submitting pull requests.
 
 ## Authors
 
@@ -177,18 +243,16 @@ If you have something to add - anything from a typo through to a whole new featu
 
 ## License
 
-[MIT](https://choosealicense.com/licenses/mit/)
+This project is licensed under the [MIT License](LICENSE).
 
-## 💪 Thanks to all Wonderful Contributors
+## Contributors
 
-Thanks a lot for spending your time helping VentoyDocker grow.
-Thanks a lot! Keep rocking 🍻
+Thanks to everyone helping VentoyDocker grow.
 
 [![Contributors](https://contrib.rocks/image?repo=Mr-Sunglasses/VentoyDocker)](https://github.com/Mr-Sunglasses/VentoyDocker/graphs/contributors)
 
-## 🙏 Support++
+## Support
 
-This project needs your shiny star ⭐.
-Don't forget to leave a star ⭐️
+If this project helps you, consider starring the repository.
 
-[![forthebadge](https://forthebadge.com/images/badges/built-with-love.svg)](https://forthebadge.com)
+[![Built with love](https://forthebadge.com/images/badges/built-with-love.svg)](https://forthebadge.com)
